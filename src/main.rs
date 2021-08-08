@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use std::time::Duration;
 
 const TIME_STEP: f32 = 1. / 60.;
 const PLAYER_STRIPE: &str = "playerShip1_blue.png";
@@ -38,7 +39,8 @@ fn main() {
             SystemStage::single(player_spawn.system()),
         )
         .add_system(player_movement.system())
-        .add_system(player_fire.system())
+        .add_system(weapons.system())
+        .add_system(laser_movement.system())
         .run()
 }
 
@@ -55,11 +57,11 @@ fn setup(
 
     // create resources
     let player_texture = asset_server.load(PLAYER_STRIPE);
-    let player_laser = asset_server.load(PLAYER_LASER_STRIPE);
+    let laser = asset_server.load(PLAYER_LASER_STRIPE);
 
     commands.insert_resource(Materials {
         player_materials: materials.add(player_texture.into()),
-        laser: materials.add(player_laser.into()),
+        laser: materials.add(laser.into()),
     });
 
     commands.insert_resource(WindowSize {
@@ -100,23 +102,23 @@ fn player_movement(
         } else if keyboard_input.pressed(KeyCode::Right) {
             1.
         } else {
-            0.
+            0.0
         };
 
-        transform.translation.x += direction * player.speed * TIME_STEP
+        transform.translation.x += direction * player.speed * TIME_STEP;
     }
 }
 
-fn player_fire(
+fn weapons(
     mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
     materials: Res<Materials>,
-    mut query: Query<(&Player, &Transform)>,
+    mut query: Query<(&Transform, With<Player>)>,
 ) {
-    if let Ok((_player, transform)) = query.single_mut() {
+    if let Ok((player_transform, _)) = query.single_mut() {
         if keyboard_input.pressed(KeyCode::Space) {
-            let x = transform.translation.x;
-            let y = transform.translation.y;
+            let x = player_transform.translation.x;
+            let y = player_transform.translation.y;
 
             commands
                 .spawn_bundle(SpriteBundle {
@@ -127,7 +129,22 @@ fn player_fire(
                     },
                     ..Default::default()
                 })
-                .insert(Laser { speed: 500.0 });
+                .insert(Laser { speed: 1000.0 });
+        }
+    }
+}
+
+fn laser_movement(
+    mut commands: Commands,
+    window_size: Res<WindowSize>,
+    mut query: Query<(Entity, &mut Transform, With<Laser>)>,
+) {
+    for (entity, mut laser_transform, _) in query.iter_mut() {
+        let translation = &mut laser_transform.translation;
+        translation.y += 1000.0 * TIME_STEP;
+
+        if translation.y > window_size.height {
+            commands.entity(entity).despawn();
         }
     }
 }
